@@ -1,7 +1,7 @@
-deepctr.models.din module
+deepctr.models.dcnmix module
 =========================
 
-.. automodule:: deepctr.models.din
+.. automodule:: deepctr.models.dcnmix
     :members:
     :no-undoc-members:
     :no-show-inheritance:

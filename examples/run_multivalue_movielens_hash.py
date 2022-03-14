@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from tensorflow.python.keras.preprocessing.sequence import pad_sequences
 
-from deepctr.inputs import SparseFeat, VarLenSparseFeat, get_feature_names
+from deepctr.feature_column import SparseFeat, VarLenSparseFeat,get_feature_names
 from deepctr.models import DeepFM
 
 if __name__ == "__main__":
@@ -20,8 +20,7 @@ if __name__ == "__main__":
     max_len = max(genres_length)
 
     # Notice : padding=`post`
-    genres_list = pad_sequences(genres_list, maxlen=max_len, padding='post', dtype=str, value=0)
-
+    genres_list = pad_sequences(genres_list, maxlen=max_len, padding='post', dtype=object, value=0).astype(str)
     # 2.set hashing space for each sparse field and generate feature config for sequence feature
 
     fixlen_feature_columns = [SparseFeat(feat, data[feat].nunique() * 5, embedding_dim=4, use_hash=True, dtype='string')

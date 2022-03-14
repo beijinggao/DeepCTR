@@ -26,27 +26,34 @@ Welcome to DeepCTR's documentation!
 .. |Chat| image:: https://img.shields.io/badge/chat-wechat-brightgreen?style=flat
 .. _Chat: ./#disscussiongroup
 
-DeepCTR is a **Easy-to-use** , **Modular** and **Extendible** package of deep-learning based CTR models along with lots of core components layer  which can be used to easily build custom models.It is compatible with **tensorflow 1.4+ and 2.0+**.You can use any complex model with ``model.fit()`` and ``model.predict()``.
+DeepCTR is a **Easy-to-use** , **Modular** and **Extendible** package of deep-learning based CTR models along with lots of core components layer  which can be used to easily build custom models.You can use any complex model with ``model.fit()`` and ``model.predict()``.
+
+- Provide ``tf.keras.Model`` like interface for **quick experiment**. `example <https://deepctr-doc.readthedocs.io/en/latest/Quick-Start.html#getting-started-4-steps-to-deepctr>`_
+- Provide  ``tensorflow estimator`` interface for **large scale data** and **distributed training**. `example <https://deepctr-doc.readthedocs.io/en/latest/Quick-Start.html#getting-started-4-steps-to-deepctr-estimator-with-tfrecord>`_
+- It is compatible with both ``tf 1.x``  and ``tf 2.x``.
 
 Let's `Get Started! <./Quick-Start.html>`_ (`Chinese Introduction <https://zhuanlan.zhihu.com/p/53231955>`_)
 
-You can read the latest code at https://github.com/shenweichen/DeepCTR
+You can read the latest code and related projects
+
+- DeepCTR: https://github.com/shenweichen/DeepCTR
+- DeepMatch: https://github.com/shenweichen/DeepMatch
+- DeepCTR-Torch: https://github.com/shenweichen/DeepCTR-Torch
 
 News
 -----
+09/03/2021 : Add multitask learning models: `SharedBottom <./Features.html#sharedbottom>`_ , `ESMM <./Features.html#esmm-entire-space-multi-task-model>`_ , `MMOE <./Features.html#mmoe-multi-gate-mixture-of-experts>`_ , `PLE <./Features.html#ple-progressive-layered-extraction>`_ .  `running example <./Examples.html#multitask-learning-mmoe>`_ `Changelog <https://github.com/shenweichen/DeepCTR/releases/tag/v0.9.0>`_
 
-05/17/2020 : Fix numerical instability in ``LayerNormalization``. `Changelog <https://github.com/shenweichen/DeepCTR/releases/tag/v0.7.5>`_
+07/18/2021 : Support pre-defined key-value vocabulary in `Hash` Layer. `example <./Examples.html#hash-layer-with-pre-defined-key-value-vocabulary>`_ `Changelog <https://github.com/shenweichen/DeepCTR/releases/tag/v0.8.7>`_
 
-03/15/2020 : Add `FLEN <./Features.html#flen-field-leveraged-embedding-network>`_ (`中文介绍 <https://zhuanlan.zhihu.com/p/92787577>`_) and ``FieldWiseBiInteraction``. `Changelog <https://github.com/shenweichen/DeepCTR/releases/tag/v0.7.4>`_
-
-03/04/2020 : Fix the inconsistency of prediction results when the model is loaded with trained weights. `Changelog <https://github.com/shenweichen/DeepCTR/releases/tag/v0.7.3>`_
+06/14/2021 : Add `IFM <./Features.html#ifm-input-aware-factorization-machine>`_ , `DIFM <./Features.html#difm-dual-input-aware-factorization-machine>`_ and `DeepFEFM <./Features.html#deepfefm-deep-field-embedded-factorization-machine>`_ . `Changelog <https://github.com/shenweichen/DeepCTR/releases/tag/v0.8.6>`_
 
 DisscussionGroup
 -----------------------
 
-公众号：**浅梦的学习笔记**  wechat ID: **deepctrbot**
+`Discussions <https://github.com/shenweichen/DeepCTR/discussions>`_  公众号：**浅梦学习笔记**  wechat ID: **deepctrbot**
 
-.. image:: ../pics/weichennote.png
+.. image:: ../pics/code.png
 
 .. toctree::
    :maxdepth: 2
@@ -63,7 +70,9 @@ DisscussionGroup
    :caption: API:
 
    Models<Models>
+   Estimators<Estimators>
    Layers<Layers>
+
 
 
 

@@ -2,7 +2,7 @@ import pytest
 
 try:
     from tensorflow.python.keras.utils import CustomObjectScope
-except:
+except ImportError:
     from tensorflow.keras.utils import CustomObjectScope
 from deepctr import layers
 
@@ -12,6 +12,22 @@ BATCH_SIZE = 5
 FIELD_SIZE = 4
 EMBEDDING_SIZE = 3
 SEQ_LENGTH = 10
+
+
+def test_FEFMLayer():
+    with CustomObjectScope({'FEFMLayer': layers.FEFMLayer}):
+        layer_test(layers.FEFMLayer, kwargs={'regularizer': 0.000001},
+                   input_shape=(BATCH_SIZE, FIELD_SIZE, EMBEDDING_SIZE))
+
+
+@pytest.mark.parametrize(
+    'reg_strength',
+    [0.000001]
+)
+def test_FwFM(reg_strength):
+    with CustomObjectScope({'FwFMLayer': layers.FwFMLayer}):
+        layer_test(layers.FwFMLayer, kwargs={'num_fields': FIELD_SIZE, 'regularizer': reg_strength},
+                   input_shape=(BATCH_SIZE, FIELD_SIZE, EMBEDDING_SIZE))
 
 
 @pytest.mark.parametrize(

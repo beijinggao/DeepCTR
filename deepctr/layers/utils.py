@@ -2,10 +2,17 @@
 """
 
 Author:
-    Weichen Shen,wcshen1994@163.com
+    Weichen Shen,weichenswc@163.com
 
 """
 import tensorflow as tf
+from tensorflow.python.keras.layers import Flatten
+from tensorflow.python.ops.lookup_ops import TextFileInitializer
+
+try:
+    from tensorflow.python.ops.lookup_ops import StaticHashTable
+except ImportError:
+    from tensorflow.python.ops.lookup_ops import HashTable as StaticHashTable
 
 
 class NoMask(tf.keras.layers.Layer):
@@ -24,14 +31,47 @@ class NoMask(tf.keras.layers.Layer):
 
 
 class Hash(tf.keras.layers.Layer):
-    """
-    hash the input to [0,num_buckets)
-    if mask_zero = True,0 or 0.0 will be set to 0,other value will be set in range[1,num_buckets)
+    """Looks up keys in a table when setup `vocabulary_path`, which outputs the corresponding values.
+    If `vocabulary_path` is not set, `Hash` will hash the input to [0,num_buckets). When `mask_zero` = True,
+    input value `0` or `0.0` will be set to `0`, and other value will be set in range [1,num_buckets).
+
+    The following snippet initializes a `Hash` with `vocabulary_path` file with the first column as keys and
+    second column as values:
+
+    * `1,emerson`
+    * `2,lake`
+    * `3,palmer`
+
+    >>> hash = Hash(
+    ...   num_buckets=3+1,
+    ...   vocabulary_path=filename,
+    ...   default_value=0)
+    >>> hash(tf.constant('lake')).numpy()
+    2
+    >>> hash(tf.constant('lakeemerson')).numpy()
+    0
+
+    Args:
+        num_buckets: An `int` that is >= 1. The number of buckets or the vocabulary size + 1
+            when `vocabulary_path` is setup.
+        mask_zero: default is False. The `Hash` value will hash input `0` or `0.0` to value `0` when
+            the `mask_zero` is `True`. `mask_zero` is not used when `vocabulary_path` is setup.
+        vocabulary_path: default `None`. The `CSV` text file path of the vocabulary hash, which contains
+            two columns seperated by delimiter `comma`, the first column is the value and the second is
+            the key. The key data type is `string`, the value data type is `int`. The path must
+            be accessible from wherever `Hash` is initialized.
+        default_value: default '0'. The default value if a key is missing in the table.
+        **kwargs: Additional keyword arguments.
     """
 
-    def __init__(self, num_buckets, mask_zero=False, **kwargs):
+    def __init__(self, num_buckets, mask_zero=False, vocabulary_path=None, default_value=0, **kwargs):
         self.num_buckets = num_buckets
         self.mask_zero = mask_zero
+        self.vocabulary_path = vocabulary_path
+        self.default_value = default_value
+        if self.vocabulary_path:
+            initializer = TextFileInitializer(vocabulary_path, 'string', 1, 'int64', 0, delimiter=',')
+            self.hash_table = StaticHashTable(initializer, default_value=self.default_value)
         super(Hash, self).__init__(**kwargs)
 
     def build(self, input_shape):
@@ -39,33 +79,43 @@ class Hash(tf.keras.layers.Layer):
         super(Hash, self).build(input_shape)
 
     def call(self, x, mask=None, **kwargs):
+
         if x.dtype != tf.string:
+            zero = tf.as_string(tf.zeros([1], dtype=x.dtype))
             x = tf.as_string(x, )
+        else:
+            zero = tf.as_string(tf.zeros([1], dtype='int32'))
+
+        if self.vocabulary_path:
+            hash_x = self.hash_table.lookup(x)
+            return hash_x
+
+        num_buckets = self.num_buckets if not self.mask_zero else self.num_buckets - 1
         try:
-            hash_x = tf.string_to_hash_bucket_fast(x, self.num_buckets if not self.mask_zero else self.num_buckets - 1,
+            hash_x = tf.string_to_hash_bucket_fast(x, num_buckets,
+                                                   name=None)  # weak hash
+        except AttributeError:
+            hash_x = tf.strings.to_hash_bucket_fast(x, num_buckets,
                                                     name=None)  # weak hash
-        except:
-            hash_x = tf.strings.to_hash_bucket_fast(x, self.num_buckets if not self.mask_zero else self.num_buckets - 1,
-                                               name=None)  # weak hash
         if self.mask_zero:
-            mask_1 = tf.cast(tf.not_equal(x, "0"), 'int64')
-            mask_2 = tf.cast(tf.not_equal(x, "0.0"), 'int64')
-            mask = mask_1 * mask_2
+            mask = tf.cast(tf.not_equal(x, zero), dtype='int64')
             hash_x = (hash_x + 1) * mask
+
         return hash_x
 
-    def compute_mask(self, inputs, mask):
-        return None
+    def compute_output_shape(self, input_shape):
+        return input_shape
 
     def get_config(self, ):
-        config = {'num_buckets': self.num_buckets, 'mask_zero': self.mask_zero}
+        config = {'num_buckets': self.num_buckets, 'mask_zero': self.mask_zero, 'vocabulary_path': self.vocabulary_path,
+                  'default_value': self.default_value}
         base_config = super(Hash, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
 class Linear(tf.keras.layers.Layer):
 
-    def __init__(self, l2_reg=0.0, mode=0, use_bias=False, **kwargs):
+    def __init__(self, l2_reg=0.0, mode=0, use_bias=False, seed=1024, **kwargs):
 
         self.l2_reg = l2_reg
         # self.l2_reg = tf.contrib.layers.l2_regularizer(float(l2_reg_linear))
@@ -73,6 +123,7 @@ class Linear(tf.keras.layers.Layer):
             raise ValueError("mode must be 0,1 or 2")
         self.mode = mode
         self.use_bias = use_bias
+        self.seed = seed
         super(Linear, self).__init__(**kwargs)
 
     def build(self, input_shape):
@@ -85,14 +136,14 @@ class Linear(tf.keras.layers.Layer):
             self.kernel = self.add_weight(
                 'linear_kernel',
                 shape=[int(input_shape[-1]), 1],
-                initializer=tf.keras.initializers.glorot_normal(),
+                initializer=tf.keras.initializers.glorot_normal(self.seed),
                 regularizer=tf.keras.regularizers.l2(self.l2_reg),
                 trainable=True)
-        elif self.mode == 2 :
+        elif self.mode == 2:
             self.kernel = self.add_weight(
                 'linear_kernel',
                 shape=[int(input_shape[1][-1]), 1],
-                initializer=tf.keras.initializers.glorot_normal(),
+                initializer=tf.keras.initializers.glorot_normal(self.seed),
                 regularizer=tf.keras.regularizers.l2(self.l2_reg),
                 trainable=True)
 
@@ -122,7 +173,7 @@ class Linear(tf.keras.layers.Layer):
         return None
 
     def get_config(self, ):
-        config = {'mode': self.mode, 'l2_reg': self.l2_reg,'use_bias':self.use_bias}
+        config = {'mode': self.mode, 'l2_reg': self.l2_reg, 'use_bias': self.use_bias, 'seed': self.seed}
         base_config = super(Linear, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -137,21 +188,21 @@ def concat_func(inputs, axis=-1, mask=False):
 
 
 def reduce_mean(input_tensor,
-               axis=None,
-               keep_dims=False,
-               name=None,
-               reduction_indices=None):
-    if tf.__version__ < '2.0.0':
+                axis=None,
+                keep_dims=False,
+                name=None,
+                reduction_indices=None):
+    try:
         return tf.reduce_mean(input_tensor,
-                   axis=axis,
-                   keep_dims=keep_dims,
-                   name=name,
-                   reduction_indices=reduction_indices)
-    else:
-        return  tf.reduce_mean(input_tensor,
-                   axis=axis,
-                   keepdims=keep_dims,
-                   name=name)
+                              axis=axis,
+                              keep_dims=keep_dims,
+                              name=name,
+                              reduction_indices=reduction_indices)
+    except TypeError:
+        return tf.reduce_mean(input_tensor,
+                              axis=axis,
+                              keepdims=keep_dims,
+                              name=name)
 
 
 def reduce_sum(input_tensor,
@@ -159,45 +210,48 @@ def reduce_sum(input_tensor,
                keep_dims=False,
                name=None,
                reduction_indices=None):
-    if tf.__version__ < '2.0.0':
+    try:
         return tf.reduce_sum(input_tensor,
-                   axis=axis,
-                   keep_dims=keep_dims,
-                   name=name,
-                   reduction_indices=reduction_indices)
-    else:
-        return  tf.reduce_sum(input_tensor,
-                   axis=axis,
-                   keepdims=keep_dims,
-                   name=name)
+                             axis=axis,
+                             keep_dims=keep_dims,
+                             name=name,
+                             reduction_indices=reduction_indices)
+    except TypeError:
+        return tf.reduce_sum(input_tensor,
+                             axis=axis,
+                             keepdims=keep_dims,
+                             name=name)
+
 
 def reduce_max(input_tensor,
                axis=None,
                keep_dims=False,
                name=None,
                reduction_indices=None):
-    if tf.__version__ < '2.0.0':
+    try:
         return tf.reduce_max(input_tensor,
-                   axis=axis,
-                   keep_dims=keep_dims,
-                   name=name,
-                   reduction_indices=reduction_indices)
-    else:
-        return  tf.reduce_max(input_tensor,
-                   axis=axis,
-                   keepdims=keep_dims,
-                   name=name)
+                             axis=axis,
+                             keep_dims=keep_dims,
+                             name=name,
+                             reduction_indices=reduction_indices)
+    except TypeError:
+        return tf.reduce_max(input_tensor,
+                             axis=axis,
+                             keepdims=keep_dims,
+                             name=name)
+
 
 def div(x, y, name=None):
-    if tf.__version__ < '2.0.0':
+    try:
         return tf.div(x, y, name=name)
-    else:
+    except AttributeError:
         return tf.divide(x, y, name=name)
 
+
 def softmax(logits, dim=-1, name=None):
-    if tf.__version__ < '2.0.0':
+    try:
         return tf.nn.softmax(logits, dim=dim, name=name)
-    else:
+    except TypeError:
         return tf.nn.softmax(logits, axis=dim, name=name)
 
 
@@ -210,13 +264,28 @@ class Add(tf.keras.layers.Layer):
         super(Add, self).build(input_shape)
 
     def call(self, inputs, **kwargs):
-        if not isinstance(inputs,list):
+        if not isinstance(inputs, list):
             return inputs
-        if len(inputs) == 1  :
+        if len(inputs) == 1:
             return inputs[0]
         if len(inputs) == 0:
             return tf.constant([[0.0]])
 
         return tf.keras.layers.add(inputs)
+
+
 def add_func(inputs):
     return Add()(inputs)
+
+
+def combined_dnn_input(sparse_embedding_list, dense_value_list):
+    if len(sparse_embedding_list) > 0 and len(dense_value_list) > 0:
+        sparse_dnn_input = Flatten()(concat_func(sparse_embedding_list))
+        dense_dnn_input = Flatten()(concat_func(dense_value_list))
+        return concat_func([sparse_dnn_input, dense_dnn_input])
+    elif len(sparse_embedding_list) > 0:
+        return Flatten()(concat_func(sparse_embedding_list))
+    elif len(dense_value_list) > 0:
+        return Flatten()(concat_func(dense_value_list))
+    else:
+        raise NotImplementedError("dnn_feature_columns can not be empty list")
